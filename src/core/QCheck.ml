@@ -793,6 +793,39 @@ module Shrink = struct
          Buffer.clear buf;
          yield s)
 
+  let substring s yield =
+    let len = String.length s in
+    (* proceed by delta debugging *)
+    let rec ddmin n =
+        (* split s into n pieces *)
+        let chunk = len / n in
+
+        (* test subsets *)
+        let pos = ref 0 in
+        for i = 1 to n-1 do
+            yield @@ String.sub s !pos chunk;
+            pos := !pos + chunk;
+        done;
+        yield @@ String.sub s !pos (len - !pos);
+
+        (* test complements *)
+        if n > 2 then begin
+            yield @@ String.sub s chunk @@ len - chunk;
+            pos := chunk;
+            for i = 2 to n do
+                let next = !pos + chunk in
+                yield (String.sub s 0 !pos ^ String.sub s next @@ len - next);
+                pos := next;
+            done
+        end;
+
+        if n < len then
+            (* increase granularity *)
+            ddmin @@ min len 2*n
+        (* otherwise done *)
+    in
+    ddmin 2
+
   let bytes ?(shrink = char) b = Iter.map Bytes.of_string (string ~shrink (Bytes.to_string b))
 
   let pair a b (x,y) yield =
